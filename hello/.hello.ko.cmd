@@ -1,0 +1,1 @@
+cmd_/lib/modules/3.16.0-38-generic/kernel/drivers/test/hello.ko := ld -r -m elf_x86_64 -T ./scripts/module-common.lds --build-id  -o /lib/modules/3.16.0-38-generic/kernel/drivers/test/hello.ko /lib/modules/3.16.0-38-generic/kernel/drivers/test/hello.o /lib/modules/3.16.0-38-generic/kernel/drivers/test/hello.mod.o

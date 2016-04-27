@@ -8,7 +8,7 @@ mode="664"
 /sbin/insmod ./$module.ko $* || exit 1
 
 #remove any old nodes given to the device
-rm -f /dev/${device}[0-9][0-9][0-9]
+rm -f /dev/${device}*
 
 major=$(awk "\$2==\"$module\" {print \$1}" /proc/devices)
 
@@ -17,11 +17,7 @@ major=$(awk "\$2==\"$module\" {print \$1}" /proc/devices)
 group="staff"
 grep -q '^staff:' /etc/group || group="wheel"
 count=0
-for i in $major
-do
-	mknod /dev/${device}$i c $major $i
-	chgrp $group /dev/${device}$(($major+$count))
-	chmod $mode /dev/${device}$(($major+$count))
-	count=$(($count+1))
-done
-
+mknod /dev/${device}0 c $major 0
+chgrp $group /dev/${device}$(($count))
+chmod $mode /dev/${device}$(($count))
+count=$(($count+1))

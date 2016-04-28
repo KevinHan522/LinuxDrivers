@@ -3,6 +3,7 @@
 #include <linux/fs.h>
 #include <asm/uaccess.h>
 #include <linux/cdev.h>
+#include <linux/proc_fs.h>
 
 #define BUFFER_SIZE 40
 
@@ -22,6 +23,7 @@ static ssize_t trans_read(struct file *filp, char * buff, size_t len, loff_t *of
 static int trans_open(struct inode *inod, struct file *fil);
 static ssize_t trans_write(struct file *filp, const char *buff, size_t len, loff_t *off);
 static int trans_release(struct inode *nod, struct file *fil) ;
+int trans_read_proc(char *buf, char **start, off_t offset, int count, int *eof, void *data);
 
 static struct file_operations fops =
 {
@@ -30,6 +32,13 @@ static struct file_operations fops =
 	.write = trans_write,
 	.release = trans_release,
 };
+
+static const struct file_operations p_fops =
+{
+	.owner = THIS_MODULE,
+	.open = trans_open_proc,
+	.read = trans_read_proc
+}
 
 static struct trans_dev tdev;
 static dev_t dev_num;
@@ -64,6 +73,9 @@ static int trans_init(void)
 		return err;
 	}
 
+	//create proc entry
+	proc_create("transInfo", 0, NULL, &p_fops);
+
 	//initialize dev structure
 	trans_setup_cdev(&tdev);
 	return err;
@@ -71,6 +83,7 @@ static int trans_init(void)
 static void trans_exit(void)
 {
 	cdev_del(&(tdev.cdev));
+	remove_proc_entry("transInfo", NULL);
 	unregister_chrdev_region(dev_num, 1);
 }	
 
@@ -80,7 +93,7 @@ static int trans_open(struct inode *inod, struct file *filp)
 	dev = container_of(inod->i_cdev, struct trans_dev, cdev);
 	filp->private_data = dev;
 	times++;
-	printk(KERN_ALERT "Device file opened %d times\n", times);
+	//printk(KERN_ALERT "Device file opened %d times\n", times);
 	return 0;
 }
 
@@ -129,6 +142,19 @@ static int trans_release(struct inode *nod, struct file *fil)
 {
 	printk(KERN_ALERT "Device closed\n");
 	return 0;
+}
+
+static int trans_open_proc(struct inode *inode, struct file *file) {
+	
+}
+
+static int trans_read_proc(char *buf, char **start, off_t offset, int count, int *eof, void *data)
+{
+	int to_return = 0;
+	struct trans_dev *dev = (struct trans_dev*) data;
+	to_return += sprintf(buf, "This device has been opened %d times and holds %d bytes.  Current position at %d.\n", times, BUFFER_SIZE, data->pos);
+	*eof = 1;
+	return to_return;
 }
 
 module_init(trans_init);

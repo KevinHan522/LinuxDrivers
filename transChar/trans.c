@@ -4,10 +4,10 @@
 #include <asm/uaccess.h>
 #include <linux/cdev.h>
 
-#define BUFFER_SIZE 20
+#define BUFFER_SIZE 40
 
 MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("Character Device Driver Demo");
+MODULE_DESCRIPTION("Character Device Driver");
 MODULE_AUTHOR("Kevin Han");
 
 
@@ -101,16 +101,19 @@ static ssize_t trans_read(struct file *filp, char * buff, size_t len, loff_t *of
 static ssize_t trans_write(struct file *filp, const char *buff, size_t len, loff_t *off)
 {
 	int to_return = 0;
+	char x = 0;
 	struct trans_dev *dev = (struct trans_dev*) filp->private_data;
 	short i = 0;
 	while(len > 0)
 	{
 		if (dev->pos  >=  BUFFER_SIZE) dev->pos = 0;
 		if (*off >= BUFFER_SIZE) *off = 0;
-		if (get_user(dev->buffer[dev->pos], buff + i)) {
+		if (get_user(x, buff + i)) {
 			to_return = -EFAULT;
 			goto out;
 		}
+		if (x >= 'a' && x <= 'z') x -= 32;
+		dev->buffer[dev->pos] = x;
 		len--;
 		i++;
 		(*off)++;

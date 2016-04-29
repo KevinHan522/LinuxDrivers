@@ -3,6 +3,7 @@
 #include <linux/fs.h>
 #include <asm/uaccess.h>
 #include <linux/cdev.h>
+#include <linux/seq_file.h>
 #include <linux/proc_fs.h>
 
 #define BUFFER_SIZE 40
@@ -23,7 +24,8 @@ static ssize_t trans_read(struct file *filp, char * buff, size_t len, loff_t *of
 static int trans_open(struct inode *inod, struct file *fil);
 static ssize_t trans_write(struct file *filp, const char *buff, size_t len, loff_t *off);
 static int trans_release(struct inode *nod, struct file *fil) ;
-int trans_read_proc(char *buf, char **start, off_t offset, int count, int *eof, void *data);
+static int trans_open_proc(struct inode *inode, struct file *file) ;
+static int trans_show_proc(struct seq_file *seq, void *v);
 
 static struct file_operations fops =
 {
@@ -33,12 +35,14 @@ static struct file_operations fops =
 	.release = trans_release,
 };
 
-static const struct file_operations p_fops =
+static const struct file_operations s_fops =
 {
 	.owner = THIS_MODULE,
 	.open = trans_open_proc,
-	.read = trans_read_proc
-}
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
 
 static struct trans_dev tdev;
 static dev_t dev_num;
@@ -67,14 +71,15 @@ static int trans_init(void)
 	
 	//acquire major number for device
 	err  = alloc_chrdev_region(&dev_num,0,1,"trans");
-	if (err < 0)
-	{
+	if (err < 0) {
 		printk(KERN_ALERT "No available major numbers\n");
 		return err;
 	}
 
 	//create proc entry
-	proc_create("transInfo", 0, NULL, &p_fops);
+	if (!proc_create("transInfo", 0, NULL, &s_fops)) {
+		return -ENOMEM;
+	}
 
 	//initialize dev structure
 	trans_setup_cdev(&tdev);
@@ -144,17 +149,15 @@ static int trans_release(struct inode *nod, struct file *fil)
 	return 0;
 }
 
-static int trans_open_proc(struct inode *inode, struct file *file) {
-	
+static int trans_open_proc(struct inode *inode, struct file *file) 
+{
+	return single_open(file, trans_show_proc, NULL);
 }
 
-static int trans_read_proc(char *buf, char **start, off_t offset, int count, int *eof, void *data)
+static int trans_show_proc(struct seq_file *seq, void *v)
 {
-	int to_return = 0;
-	struct trans_dev *dev = (struct trans_dev*) data;
-	to_return += sprintf(buf, "This device has been opened %d times and holds %d bytes.  Current position at %d.\n", times, BUFFER_SIZE, data->pos);
-	*eof = 1;
-	return to_return;
+	seq_printf(seq, "This device has been opened %d times and holds %d bytes.\n", times, BUFFER_SIZE);
+	return 0;
 }
 
 module_init(trans_init);

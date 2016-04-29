@@ -638,6 +638,8 @@ deps_/lib/modules/3.16.0-38-generic/kernel/drivers/test/transChar/trans.o := \
     $(wildcard include/config/x86/smap.h) \
   arch/x86/include/asm/uaccess_64.h \
   include/linux/cdev.h \
+  include/linux/seq_file.h \
+  include/linux/proc_fs.h \
 
 /lib/modules/3.16.0-38-generic/kernel/drivers/test/transChar/trans.o: $(deps_/lib/modules/3.16.0-38-generic/kernel/drivers/test/transChar/trans.o)
 

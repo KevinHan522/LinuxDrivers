@@ -5,6 +5,7 @@
 #include <linux/cdev.h>
 #include <linux/seq_file.h>
 #include <linux/proc_fs.h>
+#include <linux/spinlock.h>
 
 #define BUFFER_SIZE 40
 
@@ -16,6 +17,7 @@ MODULE_AUTHOR("Kevin Han");
 
 struct trans_dev {
 	int pos;
+	rwlock_t dev_lock;
 	char buffer[BUFFER_SIZE];
 	struct cdev cdev;
 };
@@ -57,6 +59,7 @@ static void trans_setup_cdev(struct trans_dev * dev)
 	{
 		dev->buffer[i] = 0;
 	}
+	rwlock_init(&(dev->dev_lock));
 	cdev_init(&(dev->cdev), &fops);
 	dev->cdev.owner = THIS_MODULE;
 	dev->cdev.ops = &fops;
@@ -109,10 +112,12 @@ static ssize_t trans_read(struct file *filp, char * buff, size_t len, loff_t *of
 	struct trans_dev *dev = (struct trans_dev*) filp->private_data;
 	if (len > BUFFER_SIZE) len = BUFFER_SIZE;
 	to_return = len;
+	read_lock(&(dev->dev_lock));
 	if (copy_to_user(buff, dev->buffer, len)) {
 		to_return = -EFAULT;
 	}
 	(*off) += len;	
+	read_unlock(&(dev->dev_lock));
 	return to_return;
 }
 
@@ -122,6 +127,7 @@ static ssize_t trans_write(struct file *filp, const char *buff, size_t len, loff
 	char x = 0;
 	struct trans_dev *dev = (struct trans_dev*) filp->private_data;
 	short i = 0;
+	write_lock(&(dev->dev_lock));
 	while(len > 0)
 	{
 		if (dev->pos  >=  BUFFER_SIZE) dev->pos = 0;
@@ -140,6 +146,7 @@ static ssize_t trans_write(struct file *filp, const char *buff, size_t len, loff
 	}
 
 	out:
+	write_unlock(&(dev->dev_lock));
 	return to_return;
 }
 

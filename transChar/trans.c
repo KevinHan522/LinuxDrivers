@@ -6,9 +6,14 @@
 #include <linux/seq_file.h>
 #include <linux/proc_fs.h>
 #include <linux/rwsem.h>
+#include <linux/delay.h>
+#include <linux/string.h>
 #include "trans_ioctl.h"
 
+
 #define BUFFER_SIZE 40
+#define MODE_UPPER 0
+#define MODE_LOWER 1
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("Character Device Driver");
@@ -18,6 +23,7 @@ MODULE_AUTHOR("Kevin Han");
 
 struct trans_dev {
 	int pos;
+	int mode;
 	struct rw_semaphore dev_lock;
 	char buffer[BUFFER_SIZE];
 	struct cdev cdev;
@@ -27,6 +33,7 @@ static ssize_t trans_read(struct file *filp, char * buff, size_t len, loff_t *of
 static int trans_open(struct inode *inod, struct file *fil);
 static ssize_t trans_write(struct file *filp, const char *buff, size_t len, loff_t *off);
 static int trans_release(struct inode *nod, struct file *fil) ;
+static long trans_ioctl(struct file *filp, unsigned int cmd, unsigned long arg);
 static int trans_open_proc(struct inode *inode, struct file *file) ;
 static int trans_show_proc(struct seq_file *seq, void *v);
 
@@ -36,6 +43,7 @@ static struct file_operations fops =
 	.open = trans_open,
 	.write = trans_write,
 	.release = trans_release,
+	.unlocked_ioctl = trans_ioctl,
 };
 
 static const struct file_operations s_fops =
@@ -62,6 +70,7 @@ static void trans_setup_cdev(struct trans_dev * dev)
 	}
 	init_rwsem(&(dev->dev_lock));
 	cdev_init(&(dev->cdev), &fops);
+	dev->mode = MODE_UPPER;
 	dev->cdev.owner = THIS_MODULE;
 	dev->cdev.ops = &fops;
 	err = cdev_add(&(dev->cdev), dev_num, 1);
@@ -137,7 +146,8 @@ static ssize_t trans_write(struct file *filp, const char *buff, size_t len, loff
 			to_return = -EFAULT;
 			goto out;
 		}
-		if (x >= 'a' && x <= 'z') x -= 32;
+		if (dev->mode == MODE_UPPER && x >= 'a' && x <= 'z') x -= 32;
+		else if (dev->mode == MODE_LOWER && x >= 'A' && x <= 'Z') x += 32;
 		dev->buffer[dev->pos] = x;
 		len--;
 		i++;
@@ -156,6 +166,26 @@ static int trans_release(struct inode *nod, struct file *fil)
 	printk(KERN_ALERT "Device closed\n");
 	return 0;
 }
+
+static long trans_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+{
+	if (_IOC_TYPE(cmd) != TRANS_MAGIC_NUM || _IOC_NR(cmd) > TRANS_MAX_NR) return -ENOTTY;
+	struct trans_dev *dev = (struct trans_dev*) filp->private_data;
+	switch(cmd)
+	{
+		case TRANS_CLEAR:
+			memset(dev->buffer, 0, BUFFER_SIZE);
+			break;
+		case TRANS_MODECHANGE:
+			if (dev->mode == MODE_UPPER) dev->mode = MODE_LOWER;
+			else dev->mode = MODE_UPPER;
+			break;
+		default:
+			return -ENOTTY;
+	}
+	return 0;
+}
+
 
 static int trans_open_proc(struct inode *inode, struct file *file) 
 {
